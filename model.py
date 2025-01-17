@@ -65,18 +65,92 @@ class MnistModel(nn.Module):
         print("Epoch [{}], val_loss: {:.4f}, val_acc: {:.4f}".format(epoch, result['val_loss'], result['val_acc']))
         return result['val_loss'], result['val_acc']
 
-# evaluation of the model
+
 # evaluation of the model
 def evaluate(model, val_loader, bs: BosonSampler = None):
     if model.embedding_size:
         outputs = []
         for step, batch in enumerate(tqdm(val_loader)):
             # embedding in the BS
+            # outputs.append(model.validation_step(batch, emb=embs.unsqueeze(0)))
+
+
             images, labs = batch
-            images = images.squeeze(0).squeeze(0)
-            t_s = time.time()
-            embs = bs.embed(images,1000)
-            outputs.append(model.validation_step(batch, emb=embs.unsqueeze(0)))
+            print("inside boson sampler; images and labs data:", images.shape, labs.shape)
+
+            batch_size = images.shape[0]
+
+            if batch_size == 1:
+                images = images.squeeze(0).squeeze(0)
+                print("shape of images after squeezed:", images.shape)
+
+                embs = bs.embed(images,1000)
+
+                # t_s = time.time()
+                print("info about embs:", type(embs), embs.shape)
+
+                # loss,acc = model.validation_step(batch,emb=embs.unsqueeze(0))
+                outputs.append(model.validation_step(batch,emb=embs.unsqueeze(0)))
+            else:
+                output_tensors = []
+                for i in range(images.shape[0]):  # Iterate over the batch
+                    single_image = images[i].squeeze(0)  # Remove the singleton dimension -> [28, 28]
+                    processed_output = bs.embed(single_image, 1000)  # Apply the function
+                    output_tensors.append(processed_output)
+
+                # Stack all outputs to create a tensor of shape [32, 435]
+                embs = torch.stack(output_tensors)
+                del output_tensors
+
+                # t_s = time.time()/
+                print("info about embs:", type(embs), embs.shape)
+
+                # loss,acc = model.validation_step(batch, emb=embs)
+                outputs.append(model.validation_step(batch, emb=embs))
     else:
         outputs = [model.validation_step(batch) for batch in val_loader]
+    return(model.validation_epoch_end(outputs))
+
+def evaluate_combined_2(model, val_loader, bs: BosonSampler = None):
+    if model.embedding_size:
+        outputs = []
+        for step, batch in enumerate(tqdm(val_loader)):
+            # embedding in the BS
+            # outputs.append(model.validation_step(batch, emb=embs.unsqueeze(0)))
+
+
+            images_PQK, images_normal, labs = batch
+            print("inside boson sampler; images and labs data:", images_PQK.shape, images_normal.shape, labs.shape)
+
+            batch_size = images_PQK.shape[0]
+
+            if batch_size == 1:
+                images = images.squeeze(0).squeeze(0)
+                print("shape of images after squeezed:", images.shape)
+
+                embs = bs.embed(images,1000)
+
+                # t_s = time.time()
+                print("info about embs:", type(embs), embs.shape)
+
+                # loss,acc = model.validation_step(batch,emb=embs.unsqueeze(0))
+                outputs.append(model.validation_step(batch,emb=embs.unsqueeze(0)))
+            else:
+                output_tensors = []
+                for i in range(images.shape[0]):  # Iterate over the batch
+                    single_image = images[i].squeeze(0)  # Remove the singleton dimension -> [28, 28]
+                    processed_output = bs.embed(single_image, 1000)  # Apply the function
+                    output_tensors.append(processed_output)
+
+                # Stack all outputs to create a tensor of shape [32, 435]
+                embs = torch.stack(output_tensors)
+                del output_tensors
+
+                # t_s = time.time()/
+                print("info about embs:", type(embs), embs.shape)
+
+                # loss,acc = model.validation_step(batch, emb=embs)
+                outputs.append(model.validation_step(batch, emb=embs))
+    else:
+        outputs = [model.validation_step(item_cols[0], item_cols[1], item_cols[2]) for item_cols in val_loader]
     return(model.validation_epoch_end(outputs))
